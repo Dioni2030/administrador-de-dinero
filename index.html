@@ -46,6 +46,15 @@ input[type=color]{padding:4px}
 @media(max-width:900px){.grid6,.grid5{grid-template-columns:repeat(2,minmax(0,1fr))}.distgrid{grid-template-columns:1fr}.right{text-align:left}}
 @media(max-width:560px){.app{padding:12px}.grid2,.grid5,.grid6{grid-template-columns:1fr}.field{min-width:100%}}
 </style>
+
+<meta name="theme-color" content="#f5f7fb">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+
 </head>
 <body>
 <div class="app">
@@ -425,5 +434,14 @@ $('#organizeActions').addEventListener('click',organizeActions);
 renderObligations();renderGoals();renderHistory();renderActions();summary();invalidate();
 })();
 </script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function(){});
+  });
+}
+</script>
+
 </body>
 </html>
