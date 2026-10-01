@@ -121,7 +121,7 @@ input[type=color]{padding:4px}
       <div id="distributionList" class="stack" style="margin-top:12px"></div>
       <div class="split" style="margin-top:12px;align-items:center">
         <div id="distMsg" class="muted">Todavía no existe una propuesta.</div>
-        <button id="confirmDist" class="btn primary" disabled>✅ Confirmar distribución</button>
+        <button id="confirmDist" class="btn primary" disabled>💾 Guardar distribución</button>
       </div>
     </div>
 
@@ -129,6 +129,12 @@ input[type=color]{padding:4px}
       <h2>Historial de ingresos cerrados</h2>
       <p class="muted" style="margin-bottom:10px">Los anteriores no participan en el cálculo actual.</p>
       <div id="incomeHistory" class="stack"></div>
+    </div>
+
+    <div class="card">
+      <h2>Historial de objetivos cumplidos</h2>
+      <p class="muted" style="margin-bottom:10px">Aquí quedan los objetivos logrados antes de volver a empezarlos.</p>
+      <div id="goalHistory" class="stack"></div>
     </div>
   </section>
 
@@ -164,10 +170,19 @@ const money=n=>'$ '+nf.format(Math.max(0,Math.round(Number(n)||0)));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=p=>p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
 
-function fresh(){return{cycle:1,income:0,reserve:0,confirmed:0,history:[],obligations:[],goals:[],proposal:{},mode:null,actions:[]}}
+function fresh(){return{cycle:1,income:0,reserve:0,confirmed:0,history:[],goalHistory:[],distributionHistory:[],obligations:[],goals:[],proposal:{},mode:null,actions:[]}}
 let state=fresh();
 try{const raw=localStorage.getItem(STORAGE);if(raw)state=Object.assign(fresh(),JSON.parse(raw))}catch(e){}
-function save(){try{localStorage.setItem(STORAGE,JSON.stringify(state))}catch(e){}}
+if(!Array.isArray(state.goalHistory))state.goalHistory=[];
+if(!Array.isArray(state.distributionHistory))state.distributionHistory=[];
+function save(){
+  try{
+    localStorage.setItem(STORAGE,JSON.stringify(state));
+    return true;
+  }catch(e){
+    return false;
+  }
+}
 
 function digits(v){return String(v??'').replace(/[^0-9]/g,'')}
 function dotted(v){return v?v.replace(/\B(?=(\d{3})+(?!\d))/g,'.'):''}
@@ -248,6 +263,24 @@ function renderHistory(){
     box.appendChild(d)
   })
 }
+function renderGoalHistory(){
+  const box=$('#goalHistory');
+  if(!box)return;
+  box.innerHTML='';
+  if(!state.goalHistory.length){
+    box.innerHTML='<div class="muted small">Todavía no has vuelto a empezar ningún objetivo cumplido.</div>';
+    return;
+  }
+  state.goalHistory.forEach(h=>{
+    const d=document.createElement('div');
+    d.className='hist';
+    d.style.borderLeft='7px solid '+(h.color||'#2563eb');
+    d.innerHTML='<strong>✅ '+esc(h.name)+'</strong>'+
+      '<div class="muted small" style="margin-top:4px">Meta lograda: '+money(h.target)+' · acumulado al cerrar: '+money(h.completedAmount)+' · fecha: '+displayDate(h.completedAt)+'</div>';
+    box.appendChild(d);
+  });
+}
+
 function renderObligations(){
   refreshRecurring();
   const box=$('#obligationList');box.innerHTML='';
@@ -308,35 +341,116 @@ function need(g){
 function renderGoals(){
   const box=$('#goalList');box.innerHTML='';
   if(!state.goals.length){box.innerHTML='<div class="muted small">Todavía no tienes objetivos.</div>';return}
-  state.goals.forEach(g=>{
-    const card=document.createElement('div');card.className='goal';card.style.borderLeftColor=g.color;
-    card.innerHTML='<div class="grid6">'+
-    '<div><label>Objetivo</label><input data-name value="'+esc(g.name)+'"></div>'+
-    '<div><label>Meta total</label><input data-target type="text" inputmode="numeric"></div>'+
-    '<div><label>Ya acumulado</label><input data-saved type="text" inputmode="numeric"></div>'+
-    '<div><label>Fecha</label><div class="row" style="gap:6px"><input data-date type="date" value="'+esc(g.date||'')+'" '+(g.noDate?'disabled':'')+'><button data-nodate class="btn" style="padding:8px 10px">Sin fecha</button></div></div>'+
-    '<div><label>Prioridad</label><select data-priority>'+priorities.map(p=>'<option '+(p===g.priority?'selected':'')+'>'+p+'</option>').join('')+'</select></div>'+
-    '<div><label>Color</label><input data-color type="color" value="'+g.color+'"></div>'+
-    '</div><div data-info class="small" style="margin-top:8px"></div><div class="right" style="margin-top:8px"><button data-delete class="btn danger">Eliminar objetivo</button></div>';
 
-    const name=card.querySelector('[data-name]'),target=card.querySelector('[data-target]'),saved=card.querySelector('[data-saved]'),date=card.querySelector('[data-date]'),nodate=card.querySelector('[data-nodate]'),priority=card.querySelector('[data-priority]'),color=card.querySelector('[data-color]'),info=card.querySelector('[data-info]');
+  state.goals.forEach(g=>{
+    const card=document.createElement('div');
+    card.className='goal';
+    card.style.borderLeftColor=g.color;
+
+    card.innerHTML='<div class="grid6">'+
+      '<div><label>Objetivo</label><input data-name value="'+esc(g.name)+'"></div>'+
+      '<div><label>Meta total</label><input data-target type="text" inputmode="numeric"></div>'+
+      '<div><label>Ya acumulado</label><input data-saved type="text" inputmode="numeric"></div>'+
+      '<div><label>Fecha</label><div class="row" style="gap:6px"><input data-date type="date" value="'+esc(g.date||'')+'" '+(g.noDate?'disabled':'')+'><button data-nodate class="btn" style="padding:8px 10px">Sin fecha</button></div></div>'+
+      '<div><label>Prioridad</label><select data-priority>'+priorities.map(p=>'<option '+(p===g.priority?'selected':'')+'>'+p+'</option>').join('')+'</select></div>'+
+      '<div><label>Color</label><input data-color type="color" value="'+g.color+'"></div>'+
+    '</div>'+
+    '<div data-info class="small" style="margin-top:8px"></div>'+
+    '<div class="right" style="margin-top:8px">'+
+      '<button data-restart class="btn" style="display:none;margin-right:8px">↻ Volver a empezar</button>'+
+      '<button data-delete class="btn danger">Eliminar objetivo</button>'+
+    '</div>';
+
+    const name=card.querySelector('[data-name]');
+    const target=card.querySelector('[data-target]');
+    const saved=card.querySelector('[data-saved]');
+    const date=card.querySelector('[data-date]');
+    const nodate=card.querySelector('[data-nodate]');
+    const priority=card.querySelector('[data-priority]');
+    const color=card.querySelector('[data-color]');
+    const info=card.querySelector('[data-info]');
+    const restart=card.querySelector('[data-restart]');
+
     function update(){
       const rem=Math.max(0,g.target-g.saved);
-      if(g.target<=0){info.textContent='Define el valor de la meta.';return}
-      if(completed(g)){info.innerHTML='✅ <strong>Meta cumplida</strong> · '+money(g.saved)+' de '+money(g.target);return}
+      const cycles=state.goalHistory.filter(h=>h.goalId===g.id).length;
+
+      if(g.target<=0){
+        info.textContent='Define el valor de la meta.';
+        restart.style.display='none';
+        return;
+      }
+
+      if(completed(g)){
+        info.innerHTML='✅ <strong>Meta cumplida</strong> · '+money(g.saved)+' de '+money(g.target)+(cycles?' · ciclos anteriores: <strong>'+cycles+'</strong>':'');
+        restart.style.display='inline-block';
+        return;
+      }
+
+      restart.style.display='none';
       const n=need(g);
-      info.innerHTML='Acumulado <strong>'+money(g.saved)+'</strong> · faltan <strong>'+money(rem)+'</strong>'+(n!==null?' · deberías ahorrar aprox. <strong>'+money(n)+'</strong> en este periodo':g.noDate?' · sin fecha límite':'')
+      info.innerHTML='Acumulado <strong>'+money(g.saved)+'</strong> · faltan <strong>'+money(rem)+'</strong>'+
+        (n!==null?' · deberías ahorrar aprox. <strong>'+money(n)+'</strong> en este periodo':g.noDate?' · sin fecha límite':'')+
+        (cycles?' · ciclos logrados: <strong>'+cycles+'</strong>':'');
     }
+
     name.addEventListener('input',()=>{g.name=name.value;save()});
     bindMoney(target,g.target,v=>{g.target=v;update();invalidate()});
     bindMoney(saved,g.saved,v=>{g.saved=v;update();invalidate()});
     date.addEventListener('change',()=>{g.date=date.value;update();invalidate()});
-    nodate.addEventListener('click',e=>{e.preventDefault();g.noDate=!g.noDate;if(g.noDate)g.date='';date.value=g.date;date.disabled=g.noDate;update();invalidate()});
+
+    nodate.addEventListener('click',e=>{
+      e.preventDefault();
+      g.noDate=!g.noDate;
+      if(g.noDate)g.date='';
+      date.value=g.date;
+      date.disabled=g.noDate;
+      update();
+      invalidate();
+    });
+
     priority.addEventListener('change',()=>{g.priority=priority.value;invalidate()});
     color.addEventListener('input',()=>{g.color=color.value;card.style.borderLeftColor=g.color;save()});
-    card.querySelector('[data-delete]').addEventListener('click',()=>{state.goals=state.goals.filter(x=>x.id!==g.id);renderGoals();invalidate()});
-    update();box.appendChild(card)
-  })
+
+    restart.addEventListener('click',()=>{
+      if(!completed(g))return;
+
+      const ok=window.confirm(
+        '¿Está seguro de que quiere volver a empezar este objetivo?\\n\\n'+
+        'El objetivo se conservará, pero el acumulado volverá a $0.'
+      );
+      if(!ok)return;
+
+      state.goalHistory.unshift({
+        id:uid('gh'),
+        goalId:g.id,
+        name:g.name,
+        target:g.target,
+        completedAmount:g.saved,
+        completedAt:today(),
+        priority:g.priority,
+        color:g.color
+      });
+
+      g.saved=0;
+      save();
+      renderGoals();
+      renderGoalHistory();
+      invalidate();
+      summary();
+    });
+
+    card.querySelector('[data-delete]').addEventListener('click',()=>{
+      state.goals=state.goals.filter(x=>x.id!==g.id);
+      save();
+      renderGoals();
+      invalidate();
+      summary();
+    });
+
+    update();
+    box.appendChild(card);
+  });
 }
 function orderedGoals(){
   return [...state.goals].filter(g=>g.target>0&&!completed(g)).sort((a,b)=>{
@@ -394,9 +508,59 @@ function updateDist(){
   $('#confirmDist').disabled=total<=0||total>av
 }
 function confirmDistribution(){
-  const total=propTotal();if(total<=0||total>available())return;
-  state.goals.forEach(g=>{const a=Math.max(0,state.proposal[g.id]||0);if(a>0)g.saved=Math.min(g.target,g.saved+a)});
-  state.confirmed+=total;state.mode=null;state.proposal={};renderGoals();summary();invalidate()
+  const total=propTotal();
+  if(total<=0||total>available())return;
+
+  const movements=[];
+
+  state.goals.forEach(g=>{
+    const proposed=Math.max(0,state.proposal[g.id]||0);
+    if(proposed<=0)return;
+
+    const before=g.saved;
+    g.saved=Math.min(g.target,g.saved+proposed);
+    const applied=g.saved-before;
+
+    if(applied>0){
+      movements.push({
+        goalId:g.id,
+        name:g.name,
+        amount:applied,
+        before:before,
+        after:g.saved
+      });
+    }
+  });
+
+  const appliedTotal=movements.reduce((sum,m)=>sum+m.amount,0);
+  state.confirmed+=appliedTotal;
+
+  state.distributionHistory.unshift({
+    id:uid('dh'),
+    date:today(),
+    cycle:state.cycle,
+    total:appliedTotal,
+    movements:movements
+  });
+
+  state.mode=null;
+  state.proposal={};
+
+  // Guardado inmediato antes de redibujar o cerrar la app.
+  const savedOk=save();
+
+  renderGoals();
+  summary();
+  invalidate();
+
+  $('#distMsg').textContent=savedOk
+    ? '✅ Distribución guardada: '+money(appliedTotal)+'. Puedes cerrar la aplicación.'
+    : '⚠️ La distribución se aplicó, pero el navegador no permitió guardarla.';
+
+  $('#confirmDist').disabled=true;
+
+  // Guardado adicional de seguridad.
+  save();
 }
 function renderActions(){
   const box=$('#actionList');box.innerHTML='';
@@ -417,6 +581,12 @@ function organizeActions(){
   $('#actionPlan').innerHTML='<strong>'+Math.max(0,total-protectedH)+' horas distribuibles</strong><div style="margin-top:8px">'+yes.map(a=>'✅ '+esc(a.name)+' — '+a.hours+' h — '+a.priority).join('<br>')+'</div>'+(no.length?'<div style="margin-top:10px">'+no.map(a=>'⏸️ '+esc(a.name)+' — aplazada').join('<br>')+'</div>':'')
 }
 
+window.addEventListener('pagehide',()=>save());
+window.addEventListener('beforeunload',()=>save());
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden')save();
+});
+
 $('#tabMoney').addEventListener('click',()=>{$('#moneySection').classList.add('active');$('#actionsSection').classList.remove('active');$('#tabMoney').classList.add('active');$('#tabActions').classList.remove('active')});
 $('#tabActions').addEventListener('click',()=>{$('#actionsSection').classList.add('active');$('#moneySection').classList.remove('active');$('#tabActions').classList.add('active');$('#tabMoney').classList.remove('active')});
 bindMoney($('#income'),state.income,v=>{state.income=v;$('#incomeNotice').textContent='';invalidate();summary()});
@@ -431,7 +601,7 @@ $('#confirmDist').addEventListener('click',confirmDistribution);
 $('#addAction').addEventListener('click',()=>{if(state.actions.length>=10)return;state.actions.push({id:uid('a'),name:'Nueva actividad',priority:'Media',hours:1,frequency:'1 vez por semana'});renderActions();save()});
 $('#organizeActions').addEventListener('click',organizeActions);
 
-renderObligations();renderGoals();renderHistory();renderActions();summary();invalidate();
+renderObligations();renderGoals();renderHistory();renderGoalHistory();renderActions();summary();invalidate();
 })();
 </script>
 
